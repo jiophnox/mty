@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎵 YouTube Audio Downloader</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e, #16213e);
+            min-height: 100vh;
+            color: white;
+            padding: 20px;
+        }
+        .container { max-width: 700px; margin: 0 auto; }
+        h1 { text-align: center; margin-bottom: 30px; }
+        
+        .search-box { display: flex; gap: 10px; margin-bottom: 20px; }
+        input {
+            flex: 1; padding: 15px 20px; border-radius: 50px;
+            border: none; font-size: 16px;
+            background: rgba(255,255,255,0.1); color: white;
+        }
+        input::placeholder { color: rgba(255,255,255,0.5); }
+        
+        button {
+            padding: 15px 25px;
+            background: linear-gradient(135deg, #e94560, #ff6b6b);
+            color: white; border: none; border-radius: 50px;
+            cursor: pointer; font-weight: bold;
+        }
+        button:hover { transform: scale(1.05); }
+        button:disabled { opacity: 0.5; }
+        
+        .result {
+            background: rgba(255,255,255,0.05);
+            border-radius: 20px;
+            padding: 25px;
+            margin-top: 20px;
+            display: none;
+        }
+        .result.active { display: block; }
+        
+        .result img {
+            width: 100%; border-radius: 15px; margin-bottom: 15px;
+        }
+        .result h3 { margin-bottom: 10px; }
+        .result p { color: rgba(255,255,255,0.7); margin-bottom: 15px; }
+        
+        audio { width: 100%; margin: 15px 0; }
+        
+        .buttons { display: flex; gap: 10px; }
+        .buttons button { flex: 1; }
+        .download-btn { background: linear-gradient(135deg, #00b894, #00cec9); }
+        
+        .status { text-align: center; padding: 20px; }
+        .spinner {
+            width: 40px; height: 40px;
+            border: 3px solid rgba(255,255,255,0.1);
+            border-top-color: #e94560;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        
+        .error { color: #ff6b6b; }
+        .success { color: #00b894; }
+        
+        .file-list {
+            margin-top: 30px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 20px;
+            padding: 20px;
+        }
+        .file-item {
+            display: flex; justify-content: space-between;
+            align-items: center; padding: 10px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        .file-item:last-child { border: none; }
+        .file-name { flex: 1; overflow: hidden; text-overflow: ellipsis; }
+        .file-size { color: rgba(255,255,255,0.5); margin: 0 15px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎵 YouTube Audio Downloader</h1>
+        
+        <div class="search-box">
+            <input type="text" id="videoId" placeholder="Paste YouTube URL or Video ID">
+            <button onclick="downloadAudio()">⬇️ Download</button>
+        </div>
+        
+        <div id="status" class="status"></div>
+        
+        <div class="result" id="result">
+            <img id="thumbnail" src="">
+            <h3 id="title"></h3>
+            <p>🎤 <span id="artist"></span> • ⏱️ <span id="duration"></span> • 📁 <span id="filesize"></span></p>
+            <audio id="player" controls></audio>
+            <div class="buttons">
+                <button onclick="playAudio()">▶️ Play</button>
+                <button class="download-btn" onclick="saveFile()">💾 Save to Device</button>
+            </div>
+        </div>
+        
+        <div class="file-list" id="fileList">
+            <h3>📁 Downloaded Files</h3>
+            <div id="files"></div>
+        </div>
+    </div>
+
+    <script>
+        let currentFile = null;
+        
+        function extractVideoId(input) {
+            const match = input.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|^)([a-zA-Z0-9_-]{11})/);
+            return match ? match[1] : input.trim();
+        }
+        
+        function formatDuration(s) {
+            if (!s) return '--:--';
+            const m = Math.floor(s / 60);
+            return `${m}:${String(s % 60).padStart(2, '0')}`;
+        }
+        
+        async function downloadAudio() {
+            const input = document.getElementById('videoId').value.trim();
+            if (!input) return alert('Enter a Video ID!');
+            
+            const videoId = extractVideoId(input);
+            const status = document.getElementById('status');
+            const result = document.getElementById('result');
+            
+            result.classList.remove('active');
+            status.innerHTML = '<div class="spinner"></div><p>Downloading with metadata...</p>';
+            
+            try {
+                const res = await fetch(`/api/download/${videoId}`);
+                const data = await res.json();
+                
+                if (!data.success) throw new Error(data.error);
+                
+                currentFile = data;
+                
+                document.getElementById('thumbnail').src = data.thumbnail;
+                document.getElementById('title').textContent = data.title;
+                document.getElementById('artist').textContent = data.artist;
+                document.getElementById('duration').textContent = formatDuration(data.duration);
+                document.getElementById('filesize').textContent = data.filesizeMB + ' MB';
+                document.getElementById('player').src = data.downloadUrl;
+                
+                status.innerHTML = '<p class="success">✅ Downloaded successfully!</p>';
+                result.classList.add('active');
+                
+                loadFileList();
+                
+            } catch (err) {
+                status.innerHTML = `<p class="error">❌ ${err.message}</p>`;
+            }
+        }
+        
+        function playAudio() {
+            document.getElementById('player').play();
+        }
+        
+        function saveFile() {
+            if (currentFile) {
+                const a = document.createElement('a');
+                a.href = currentFile.downloadUrl;
+                a.download = currentFile.filename;
+                a.click();
+            }
+        }
+        
+        async function loadFileList() {
+            try {
+                const res = await fetch('/api/list');
+                const data = await res.json();
+                
+                const html = data.files.map(f => `
+                    <div class="file-item">
+                        <span class="file-name">${f.filename}</span>
+                        <span class="file-size">${f.sizeMB} MB</span>
+                        <button onclick="window.location='${f.downloadUrl}'">💾</button>
+                    </div>
+                `).join('');
+                
+                document.getElementById('files').innerHTML = html || '<p>No files yet</p>';
+            } catch (e) {}
+        }
+        
+        loadFileList();
+    </script>
+</body>
+</html>
