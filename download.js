@@ -10,7 +10,8 @@ const app = express();
 const PORT = 3000;
 
 // yt-dlp path
-const YTDLP = 'yt-dlp';
+// yt-dlp path - use local binary on Render, system binary locally
+const YTDLP = process.env.RENDER ? path.join(__dirname, 'yt-dlp') : 'yt-dlp';
 
 // Download folder
 const DOWNLOAD_DIR = path.join(__dirname, 'downloads');
